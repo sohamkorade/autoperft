@@ -10,6 +10,7 @@ Using a Teacher-Student model, AutoPerft employs a strong reference engine (teac
 ## Requirements
 - Python 3.x
 - UCI-compatible chess engines (see [Stockfish](https://stockfishchess.org/))
+- FEN string or EPD file for test positions (see [perftsuite.epd](perftsuite.epd))
 
 ## Usage
 To use AutoPerft, run the script with the appropriate arguments from your command line.
@@ -17,7 +18,7 @@ To use AutoPerft, run the script with the appropriate arguments from your comman
 ### Command-Line Arguments
 - `teacher_path`: Path to the teacher engine executable.
 - `student_path`: Path to the student engine executable.
-- `--fen` or `--epd`: Provide either a single FEN string or a path to an EPD file containing multiple FEN strings.
+- `--fen` or `--epd`: Provide either a single FEN string or a path to an EPD file.
 - `--max_depth`: (Optional) Maximum depth for the perft test (default is 6).
 
 ### Example Commands
@@ -55,6 +56,7 @@ def customize(teacher, student):
 - https://www.chessprogramming.org/UCI
 - https://lichess.org/analysis
 - https://github.com/official-stockfish/Stockfish
+- https://scidvspc.sourceforge.net/doc/EPD.htm
 
 ## Note
 
