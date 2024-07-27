@@ -95,53 +95,42 @@ def green(text):
     return f"\033[92m{text}\033[0m"
 
 
-def bisect(teacher, student, depth=1, fen="", moves=[]):
-    teacher_nodes, teacher_time_taken = teacher.get_perft(depth, fen, moves)
-    student_nodes, student_time_taken = student.get_perft(depth, fen, moves)
-    if teacher_nodes == student_nodes:
-        if len(moves) == 0:  # not bisecting
+def bisect(teacher, student, depth=1, fen=""):
+    print("  Bisecting...")
+
+    moves = []
+    for depth in range(depth, 0, -1):
+        teacher.get_perft(depth, fen, moves)
+        student.get_perft(depth, fen, moves)
+        teacher_moves = teacher.parse_divide()
+        student_moves = student.parse_divide()
+
+        # lowest difference greater than 0
+        min_diff = float("inf")
+        faulty_moves = 0
+        move = None
+        for key in teacher_moves:
+            if key not in student_moves:
+                print(red(f"  - {key} missing"))
+                continue
+            diff = abs(teacher_moves[key] - student_moves[key])
+            if diff > 0 and diff < min_diff:
+                min_diff = diff
+                move = key
+                faulty_moves += 1
+        for key in student_moves:
+            if key not in teacher_moves:
+                print(red(f"  + {key} extra"))
+
+        if move:
+            moves.append(move)
             print(
-                f" Depth {depth} {student_nodes:15} {green('PASS')} ({student_time_taken*1000:.2f} ms)"
+                f"{'  '*len(moves)} {move} ({red(student_moves[move])} != {green(teacher_moves[move])}) out of {faulty_moves} faulty"
             )
-        return teacher_time_taken, student_time_taken
 
-    if len(moves) == 0:  # not bisecting
-        print(
-            f" Depth {depth} {student_nodes:15} {red('FAIL')}, expected {teacher_nodes}"
-        )
-        print("  Bisecting...")
-    teacher_moves = teacher.parse_divide()
-    student_moves = student.parse_divide()
-
-    # lowest difference greater than 0
-    min_diff = float("inf")
-    faulty_moves = 0
-    move = None
-    for key in teacher_moves:
-        if key not in student_moves:
-            print(red(f"  - {key} missing"))
-            continue
-        diff = abs(teacher_moves[key] - student_moves[key])
-        if diff > 0 and diff < min_diff:
-            min_diff = diff
-            move = key
-            faulty_moves += 1
-    for key in student_moves:
-        if key not in teacher_moves:
-            print(red(f"  + {key} extra"))
-
-    if move:
-        moves.append(move)
-        print(
-            f"{'  '*len(moves)} {move} ({red(student_moves[move])} != {green(teacher_moves[move])}) out of {faulty_moves} faulty"
-        )
-
-    if depth > 1:
-        bisect(teacher, student, depth - 1, fen, moves)
-    else:
-        print(
-            f"  lichess: https://lichess.org/analysis/{fen.replace(' ','_')} {' '.join(moves)}"
-        )
+    print(
+        f"  lichess: https://lichess.org/analysis/{fen.replace(' ','_')} {' '.join(moves)}"
+    )
     exit(1)
 
 
@@ -175,17 +164,32 @@ n_tests = len(epd_list)
 print(f"{n_tests} tests found")
 
 # run tests
-total_teacher_time = 0
 total_student_time = 0
 for i in range(len(epd_list)):
     print(f"Test {i+1}/{n_tests}")
-    fen = epd_list[i].split(" ;")[0]
+    fen, *known_depths = epd_list[i].split(" ;")
     print(" FEN:", fen)
-    for depth in range(1, 1 + args.max_depth):
-        teacher_time, student_time = bisect(teacher, student, depth, fen)
-        total_teacher_time += teacher_time
-        total_student_time += student_time
+    if args.epd:
+        known_depths = [
+            int(i.split(" ")[1]) for i in known_depths
+            if re.match(r"D\d+ \d+", i)
+        ]
+        max_depth = min(args.max_depth, len(known_depths))
+    if args.fen or len(known_depths) == 0:
+        max_depth = args.max_depth
+    for depth in range(1, 1 + max_depth):
+        if args.epd and depth <= len(known_depths):
+            teacher_nodes = known_depths[depth - 1]
+        else:
+            teacher_nodes, _ = teacher.get_perft(depth, fen)
+        student_nodes, student_time_taken = student.get_perft(depth, fen)
+        total_student_time += student_time_taken
+        print(f" Depth {depth} {student_nodes:15}", end="")
+        if teacher_nodes == student_nodes:
+            print(f" {green('PASS')}, {student_time_taken*1000:.2f} ms")
+        else:
+            print(f" {red('FAIL')}, expected {teacher_nodes}")
+            bisect(teacher, student, depth, fen)
 
 print(green("All tests passed!"))
-print(f"Total time taken by Teacher: {total_teacher_time:.2f} s")
-print(f"Total time taken by Student: {total_student_time:.2f} s")
+print(f"took {total_student_time:.2f} s")
