@@ -15,6 +15,7 @@ def customize(teacher, student):
 
 import subprocess
 import re
+import time
 
 
 class ChessEngine:
@@ -44,7 +45,11 @@ class ChessEngine:
             stdout=subprocess.PIPE,
         )
         cmd = self.SETUP_CMD + "\n" + cmd
+
+        t0 = time.time()
         self.output = engine.communicate(cmd)[0].rstrip().split("\n")
+        t1 = time.time()
+        return t1 - t0
 
     def get_name(self):
         self.run(self.UCI_CMD)
@@ -64,11 +69,11 @@ class ChessEngine:
             cmd = self.POSITION_FEN_MOVES_CMD.format(fen=fen,
                                                      move_list=move_list)
         cmd += "\n" + self.PERFT_CMD.format(depth=depth)
-        self.run(cmd)
+        time_taken = self.run(cmd)
         for line in self.output:
             nodes_count = re.search(self.NODE_COUNT_REGEX, line)
             if nodes_count:
-                return int(nodes_count.group(1))
+                return int(nodes_count.group(1)), time_taken
         raise Exception(
             "Unable to parse nodes count. Check if NODE_COUNT_REGEX is set properly."
         )
@@ -91,12 +96,14 @@ def green(text):
 
 
 def bisect(teacher, student, depth=1, fen="", moves=[]):
-    teacher_nodes = teacher.get_perft(depth, fen, moves)
-    student_nodes = student.get_perft(depth, fen, moves)
+    teacher_nodes, teacher_time_taken = teacher.get_perft(depth, fen, moves)
+    student_nodes, student_time_taken = student.get_perft(depth, fen, moves)
     if teacher_nodes == student_nodes:
         if len(moves) == 0:  # not bisecting
-            print(f" Depth {depth} {student_nodes:15} {green('PASS')}")
-        return
+            print(
+                f" Depth {depth} {student_nodes:15} {green('PASS')} ({student_time_taken*1000:.2f} ms)"
+            )
+        return teacher_time_taken, student_time_taken
 
     if len(moves) == 0:  # not bisecting
         print(
@@ -168,11 +175,17 @@ n_tests = len(epd_list)
 print(f"{n_tests} tests found")
 
 # run tests
+total_teacher_time = 0
+total_student_time = 0
 for i in range(len(epd_list)):
     print(f"Test {i+1}/{n_tests}")
     fen = epd_list[i].split(" ;")[0]
     print(" FEN:", fen)
     for depth in range(1, 1 + args.max_depth):
-        bisect(teacher, student, depth, fen)
+        teacher_time, student_time = bisect(teacher, student, depth, fen)
+        total_teacher_time += teacher_time
+        total_student_time += student_time
 
 print(green("All tests passed!"))
+print(f"Total time taken by Teacher: {total_teacher_time:.2f} s")
+print(f"Total time taken by Student: {total_student_time:.2f} s")
